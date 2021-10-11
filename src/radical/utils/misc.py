@@ -8,6 +8,9 @@ import datetime
 import tempfile
 import itertools
 
+from typing import TypeVar, Union, List, Optional
+T = TypeVar('T')
+
 from urllib.parse import unquote_plus
 
 from .         import url       as ruu
@@ -351,6 +354,8 @@ def as_tuple(data):
 
 # ------------------------------------------------------------------------------
 #
+# FIXME: use TypeGuard (3.10)
+#
 def is_list(data):
     '''
     return True if given data are a `list`, `False` otherwise
@@ -361,14 +366,14 @@ def is_list(data):
 
 # ------------------------------------------------------------------------------
 #
-def as_list(data):
+def as_list(data: Optional[Union[T, List[T]]]) -> List[T]:
     '''
     return non-list data into a list.
     '''
 
-    if   data is None : return []
-    elif is_list(data): return data
-    else              : return [data]
+    if   data is None          : return []
+    elif isinstance(data, list): return data    # is_list() is not a TypeGuard
+    else                       : return [data]
 
 
 # ------------------------------------------------------------------------------
