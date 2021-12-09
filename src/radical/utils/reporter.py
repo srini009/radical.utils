@@ -411,15 +411,18 @@ class Reporter(object):
         if not self._enabled:
             return
 
-        if label:
-            front = '%-6s: ' % label
-        else:
-            front = '%-6d: ' % tgt
-
-        self._prog_len = self._line_len - len(front)
         self._prog_tgt = tgt
         self._prog_cnt = 0
         self._prog_pos = 0
+
+        if label:
+            front = '%-6s: ' % label
+            back  = ' %d'    % self._prog_tgt
+        else:
+            front = '%-6d: ' % tgt
+            back  = ' %d'    % self._prog_tgt
+
+        self._prog_len = self._line_len - len(front) - len(back)
 
         self._format(front, self._settings['progress'])
 
@@ -431,11 +434,11 @@ class Reporter(object):
         if not self._enabled:
             return
 
+        self._format(' %d\n' % self._prog_cnt, self._settings['progress'])
+
         self._prog_tgt = None
         self._prog_cnt = 0
         self._prog_pos = 0
-        self._format('\n', self._settings['progress'])
-
 
     # --------------------------------------------------------------------------
     #
