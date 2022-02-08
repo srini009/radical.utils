@@ -15,11 +15,15 @@ class Session(object):
     # --------------------------------------------------------------------------
     #
     def __init__(self):
+        '''
+        Create a ZMQ server to receive 'pilot state updates' (well, termination
+        signals in this example).  Each such message will invoke
+        `self.boom_handler()'
+        '''
 
         zmq_ep = ru.zmq.Server(uid='demo_app')
         zmq_ep.register_request('boom', self.boom_handler)
         zmq_ep.start()
-
         ru.write_json('./demo_app.cfg', {'addr': zmq_ep.addr})
 
 
@@ -46,13 +50,14 @@ class Session(object):
 #
 def main(n):
     '''
-    this is the application main thread.  It starts the watcher thread and then
-    does important things.  Specifically though this thread is *not* owned by
-    RP, but is owner by the application programmer.  As such we cannot insert
-    code to listen for signals, can't create `at_exit` handlers, can't install
-    signal handlers etc - this is to be left alone!
+    This is the application main thread.  It creates a `Session` and then just
+    waits for exceptions to happen.
 
-    n: number of exceptions we except to receive
+    Thread is *not* owned by RP, but is owned by the application programmer.  As
+    such we cannot insert code to listen for signals, can't create `at_exit`
+    handlers, can't install signal handlers etc - this is to be left alone!
+
+    n: number of exceptions we expect to receive
     '''
 
     count = 0

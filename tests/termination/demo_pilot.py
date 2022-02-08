@@ -9,16 +9,15 @@ import radical.utils as ru
 #
 def main(n):
     '''
-    once per second send a signal to the demo app server
+    once per second send a termination signal to the demo app server
     '''
 
     zmq_ep = ru.zmq.Client('demo_app')
 
     for i in range(n):
-        print('.', end='', flush=True)
+        time.sleep(1)
         reply = zmq_ep.request('boom')
         print('%3d: server replied: %s' % (i, reply))
-        time.sleep(1)
 
 
 # ------------------------------------------------------------------------------
