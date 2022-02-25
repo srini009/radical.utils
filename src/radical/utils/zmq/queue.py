@@ -24,10 +24,6 @@ from .utils    import no_intr
 # from .utils    import prof_bulk
 
 
-# logger = Logger('radical.utils.zmq.queue', targets=['.'], level='DEBUG',
-# path='/tmp')
-# logger.debug('==== logging!')
-
 # FIXME: the log bulk method is frequently called and slow
 
 # --------------------------------------------------------------------------
@@ -197,7 +193,7 @@ class Queue(Bridge):
         self._addr_get.host = get_hostip()
 
         self._log.info('bridge in  %s: %s'  % (self._uid, self._addr_put))
-        self._log.info('       out %s: %s'  % (self._uid, self._addr_get))
+        self._log.info('bridge out %s: %s'  % (self._uid, self._addr_get))
 
         # start polling senders
         self._poll_put = zmq.Poller()
@@ -227,9 +223,9 @@ class Queue(Bridge):
                 active = False
 
                 # check for incoming messages, and buffer them
-                ev_put = dict(no_intr(self._poll_put.poll, timeout=0))
+                ev_put = dict(no_intr(self._poll_put.poll, timeout=10000))
               # self._prof.prof('poll_put', msg=len(ev_put))
-              # self._log.debug('polled put: %s', ev_put)
+                self._log.debug('polled put: %s', ev_put)
 
                 if self._put in ev_put:
 
@@ -239,11 +235,11 @@ class Queue(Bridge):
                     if len(data) != 2:
                         raise RuntimeError('%d frames unsupported' % len(data))
 
-                    qname = msgpack.unpackb(data[0])
+                    qname = as_string(msgpack.unpackb(data[0]))
                     msgs  = msgpack.unpackb(data[1])
-                  # log_bulk(logger, msgs, '<> %s' % qname)
                   # prof_bulk(self._prof, 'poll_put_recv', msgs)
-                  # self._log.debug('put %s: %s', qname, len(msgs))
+                  # log_bulk(self._log, '<> %s' % qname, msgs)
+                    self._log.debug('put %s: %s ! ', qname, len(msgs))
 
                     if qname not in buf:
                         buf[qname] = list()
@@ -254,9 +250,9 @@ class Queue(Bridge):
 
 
                 # check if somebody wants our messages
-                ev_get = dict(no_intr(self._poll_get.poll, timeout=0))
+                ev_get = dict(no_intr(self._poll_get.poll, timeout=10000))
               # self._prof.prof('poll_get', msg=len(ev_get))
-              # self._log.debug('polled get: %s [%s]', ev_get, self._get)
+                self._log.debug('polled get: %s [%s]', ev_get, self._get)
 
                 if self._get in ev_get:
 
@@ -275,12 +271,15 @@ class Queue(Bridge):
                     else:
                         msgs = list()
 
-                  # log_bulk(logger, msgs, '>< %s' % qname)
+                  # log_bulk(self._log, '>< %s' % qname, msgs)
 
                     data = [msgpack.packb(qname), msgpack.packb(msgs)]
                     active = True
 
-                  # self._log.debug('get %s: %s', qname, len(msgs))
+                    self._log.debug('==== get %s: %s', qname, list(buf.keys()))
+                    self._log.debug('==== get %s: %s', qname, list(buf.values()))
+                    self._log.debug('==== get %s: %s ! [%s]', qname, len(msgs),
+                                           [[x, len(y)] for x,y in buf.items()])
                     no_intr(self._get.send_multipart, data)
                   # prof_bulk(self._prof, 'poll_get_send', msgs=msgs, msg=req)
 
@@ -299,7 +298,7 @@ class Queue(Bridge):
                     # the busy one.
                     time.sleep(0.1)
 
-        except  Exception:
+        except Exception:
             self._log.exception('bridge failed')
 
     def stop(self):
@@ -372,7 +371,7 @@ class Putter(object):
         if not qname:
             qname = 'default'
 
-      # log_bulk(self._log, msgs, '-> %s [%s]' % (self._channel, qname))
+      # log_bulk(self._log, '-> %s[%s]' % (self._channel, qname), msgs)
         data = [msgpack.packb(qname), msgpack.packb(msgs)]
 
         with self._lock:
@@ -395,7 +394,7 @@ class Getter(object):
     # --------------------------------------------------------------------------
     #
     @staticmethod
-    def _get_nowait(url, qname=None, timeout=None):  # timeout in ms
+    def _get_nowait(url, qname=None, timeout=None, uid=None):  # timeout in ms
 
         info = Getter._callbacks[url]
 
@@ -404,9 +403,12 @@ class Getter(object):
 
         with info['lock']:
 
+          # logger  = Logger(name=qname, ns='radical.utils', level='DEBUG')
+
             if not info['requested']:
 
                 # send the request *once* per recieval (got lock above)
+              # logger.debug('=== => from %s[%s]', uid, qname)
                 no_intr(info['socket'].send, as_bytes(qname))
                 info['requested'] = True
 
@@ -418,7 +420,7 @@ class Getter(object):
 
                 qname = as_string(msgpack.unpackb(data[0]))
                 msgs  = as_string(msgpack.unpackb(data[1]))
-              # log_bulk(logger, msgs, '<- %s' % qname)
+              # log_bulk(logger, '<-1 %s [%s]' % (uid, qname), msgs)
                 return msgs
 
             else:
@@ -428,7 +430,7 @@ class Getter(object):
     # --------------------------------------------------------------------------
     #
     @staticmethod
-    def _listener(url, qname=None):
+    def _listener(url, qname=None, uid=None):
         '''
         other than the pubsub listener, the queue listener will not deliver
         an incoming message to all subscribers, but only to exactly *one*
@@ -453,7 +455,7 @@ class Getter(object):
                     time.sleep(0.01)
                     continue
 
-                msgs = Getter._get_nowait(url, qname=qname, timeout=500)
+                msgs = Getter._get_nowait(url, qname=qname, timeout=500, uid=uid)
 
                 BULK = True
                 if msgs:
@@ -501,7 +503,7 @@ class Getter(object):
         if Getter._callbacks[self._url]['thread']:
             return
 
-        t = mt.Thread(target=Getter._listener, args=[self._url, qname])
+        t = mt.Thread(target=Getter._listener, args=[self._url, qname, self._uid])
         t.daemon = True
         t.start()
 
@@ -664,11 +666,15 @@ class Getter(object):
         if not qname:
             qname = 'default'
 
-        if not self._requested:
 
+        # double-check: minimize lock use which is only needed for a very
+        # rare race anyway
+        if not self._requested:
             with self._lock:
-                no_intr(self._q.send, as_bytes(qname))
-                self._requested = True
+                if not self._requested:
+                    self._log.debug('=== => from %s[%s]', self._channel, qname)
+                    no_intr(self._q.send, as_bytes(qname))
+                    self._requested = True
 
           # self._prof.prof('requested')
 
@@ -678,6 +684,8 @@ class Getter(object):
 
         qname = msgpack.unpackb(data[0])
         msgs  = msgpack.unpackb(data[1])
+
+      # log_bulk(self._log, '<-2 %s [%s]' % (self._channel, qname), msgs)
 
         return as_string(msgs)
 
@@ -698,20 +706,21 @@ class Getter(object):
             qname = 'default'
 
         if not self._requested:
-
             with self._lock:  # need to protect self._requested
-                no_intr(self._q.send_multipart, [as_bytes(qname)])
-                self._requested = True
-
+                if not self._requested:
+                    self._log.debug('=== => from %s[%s]', self._channel, qname)
+                    no_intr(self._q.send_multipart, [as_bytes(qname)])
+                    self._requested = True
 
         if no_intr(self._q.poll, flags=zmq.POLLIN, timeout=timeout):
-
             with self._lock:
                 data = no_intr(self._q.recv_multipart)
                 self._requested = False
 
             qname = msgpack.unpackb(data[0])
             msgs  = msgpack.unpackb(data[1])
+          # log_bulk(self._log, '<-3 %s [%s]' % (self._channel, qname), msgs)
+
             return as_string(msgs)
 
         else:

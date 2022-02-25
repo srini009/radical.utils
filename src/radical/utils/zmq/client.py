@@ -2,12 +2,11 @@
 import zmq
 import msgpack
 
-from typing import Optional, List, Dict, Tuple, Any
+from typing import Any
 
 import threading as mt
 
 from ..json_io import read_json
-from ..misc    import as_list
 
 from .utils    import no_intr, sock_connect
 
@@ -74,7 +73,7 @@ class Client(object):
         if res['err']:
             err_msg = 'ERROR: %s' % res['err']
             if res['exc']:
-                err_msg += '\n%s' % '\n'.join(res['exc'])
+                err_msg += '\n%s' % ''.join(res['exc'])
             raise RuntimeError(err_msg)
 
         return res['res']
