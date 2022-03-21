@@ -282,8 +282,8 @@ check(){
     shift $(($OPTIND - 1))
     cmd="$*"
 
-    test -z "$outfile" && outfile=1
-    test -z "$errfile" && errfile=2
+  # test -z "$outfile" && outfile=1
+  # test -z "$errfile" && errfile=2
 
     if   test -z "$outfile" -a -z "$errfile"; then ($cmd)
     elif test -z "$outfile"                 ; then ($cmd) 2>> "$errfile"
@@ -311,11 +311,10 @@ sync_n(){
     # whoever is interested.  The instances are not required to live in the same
     # OS image, and we thus cannot rely on actual UNIX signals.  Instead, we use
     # the (presumably shared) file system: the 'READY' signal appends a line to
-    # the 'ready' file (see `-f`), the 'GO' signal creates removes the `ready`
-    # file.
+    # the 'ready' file (see `-f`), the 'GO' signal removes the `ready` file.
 
     #   -n <int>   : number of instances to sync
-    #   -f <file>  : file used for signalling
+    #   -f <file>  : file to use for signalling
 
     f=
     n=

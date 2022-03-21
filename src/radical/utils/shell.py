@@ -84,9 +84,9 @@ def sh_callout_bg(cmd, stdout=None, stderr=None, shell=False, env=None):
     # convert string into arg list if needed
     if not shell and is_string(cmd): cmd = shlex.split(cmd)
 
-    sp.Popen(cmd, stdout=stdout, stderr=stderr, shell=shell, env=env)
+    proc = sp.Popen(cmd, stdout=stdout, stderr=stderr, shell=shell, env=env)
 
-    return
+    return proc
 
 
 # ------------------------------------------------------------------------------
@@ -94,7 +94,6 @@ def sh_callout_bg(cmd, stdout=None, stderr=None, shell=False, env=None):
 def sh_callout_async(cmd, stdin=True, stdout=True, stderr=True,
                           shell=False, env=None):
     '''
-
     Run a command, and capture stdout/stderr if so flagged.  The call will
     return an PROC object instance on which the captured output can be retrieved
     line by line (I/O is line buffered).  When the process is done, a `None`
