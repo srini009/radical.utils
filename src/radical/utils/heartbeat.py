@@ -10,9 +10,14 @@ from .misc   import as_list
 from .logger import Logger
 
 
+
 # ------------------------------------------------------------------------------
 #
 class Heartbeat(object):
+
+    PROCESS_MONITOR       = 'process_monitor'
+    FILE_REMOVAL_MONITOR  = 'file_removal_monitor'
+    FILE_CREATION_MONITOR = 'file_creation_monitor'
 
     # --------------------------------------------------------------------------
     #
@@ -37,6 +42,42 @@ class Heartbeat(object):
 
         When timeout is set to `None`,  no trigger action on missing heartbeats
         will ever be triggered.
+
+        An application using this class can register 'monitor' functions which
+        are called at each interval.  Those monitor functions can be used to
+        trigger a heartbeat on certain conditions, for example, if they find
+        a parent process to be alive etc.  The signature for those monitors is:
+
+            def my_monitor(str: uid, Any: data=None) -> bool:
+
+        If a monitor returns `True` it counts as a heartbeat for that uid.  If
+        a monitor returns `False`, it counts as a noop (no heartbeat is
+        created).  If the monitor raises an exception, the monitored `uid` is
+        considered unrecoverably dead and the heartbeat will invoke termination.
+
+        Monitors can be registered via:
+
+          Heartbeat.register_monitor(str: uid, monitor, data=None)
+
+        where `monitor` is either a callable with the signature defined as above
+        or one of the following constants:
+
+            `Heartbeat.PROCESS_MONITOR`
+            `Heartbeat.FILE_REMOVAL_MONITOR`
+            `Heartbeat.FILE_CREATION_MONITOR`
+
+        Those constants point to built-in monitors with the following semantics:
+
+        `PROCESS_MONITOR`: `data` is expected to be a single or a list of
+        processes IDs to watch - if any of those processes is not found alive,
+        the monitor will raise a `RuntimeError`.
+
+        `FILE_REMOVAL_MONITOR`: `data` is expected to be a single or a list of file
+        names to watch - if any of the files to which those filenames point
+        disappears, the monitor will raise a `RuntimeError`.
+
+        `FILE_CREATION_MONITOR`: like the `FILE_REMOVAL_MONITOR`, but raises
+        when a file is created.
         '''
 
         # we should not need to lock timestamps, in the current CPython
@@ -59,11 +100,24 @@ class Heartbeat(object):
         self._lock     = mt.Lock()
         self._tstamps  = dict()
         self._pid      = os.getpid()
+        self._monitors = list()
         self._watcher  = None
 
         if not self._log:
             self._log  = Logger('radical.utils.heartbeat')
 
+
+    # --------------------------------------------------------------------------
+    #
+    def register_monitor(self, uid, monitor, data):
+
+        if isinstance(monitor, str):
+            if monitor == PROCESS_MONITOR:
+                self.register_monitor(uid, self._process_monitor, data)
+            elif monitor == FILE_REMOVAL_MONITOR:
+                self.register_monitor(uid, self._file_removal_monitor, data)
+            elif monitor == FILE_CREATION_MONITOR:
+                self.register_monitor(uid, self._file_creation_monitor, data)
 
     # --------------------------------------------------------------------------
     #
